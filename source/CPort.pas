@@ -3426,66 +3426,36 @@ end;
 
 procedure EnumComPorts(Ports: TStrings);
 var
-  KeyHandle: HKEY;
-  ErrCode, Index: Integer;
-  ValueName, Data: string;
-  ValueLen, DataLen, ValueType: DWORD;
-  TmpPorts: TStringList;
+  Reg : TRegistry;
+  I: Integer;
+  NameList, TmpPorts: TStringList;
 begin
-  ErrCode := RegOpenKeyEx(
-    HKEY_LOCAL_MACHINE,
-    'HARDWARE\DEVICEMAP\SERIALCOMM',
-    0,
-    KEY_READ,
-    KeyHandle);
-
-  if ErrCode <> ERROR_SUCCESS then
-  begin
-    //raise EComPort.Create(CError_RegError, ErrCode);
-    exit;
+  Reg := TRegistry.Create;
+  Try
+    Reg.RootKey := HKEY_LOCAL_MACHINE;
+    if Reg.OpenKeyReadOnly('\HARDWARE\DEVICEMAP\SERIALCOMM') then
+    begin
+      TmpPorts := TStringList.Create;
+      try
+        NameList := TStringList.Create;
+        try
+          Reg.GetValueNames(NameList);
+          for I := 0 to NameList.Count - 1 do
+          begin
+            TmpPorts.Add(Reg.ReadString(NameList.Strings[I]));
+          end;
+        finally
+          NameList.Free;
+        end;
+        TmpPorts.Sort;
+        Ports.Assign(TmpPorts);
+      finally
+        TmpPorts.Free;
+      end;
+    end;
+  Finally
+    Reg.Free;
   end;
-
-  TmpPorts := TStringList.Create;
-  try
-    Index := 0;
-    repeat
-      ValueLen := 256;
-      DataLen := 256;
-      SetLength(ValueName, ValueLen);
-      SetLength(Data, DataLen);
-      ErrCode := RegEnumValue(
-        KeyHandle,
-        Index,
-        PChar(ValueName),
-        {$IFDEF DELPHI_4_OR_HIGHER}
-        Cardinal(ValueLen),
-        {$ELSE}
-        ValueLen,
-          {$ENDIF}
-        nil,
-        @ValueType,
-        PByte(PChar(Data)),
-        @DataLen);
-
-      if ErrCode = ERROR_SUCCESS then
-      begin
-        SetLength(Data, DataLen - 1);
-        TmpPorts.Add(Data);
-        Inc(Index);
-      end
-      else
-        if ErrCode <> ERROR_NO_MORE_ITEMS then break;
-          //raise EComPort.Create(CError_RegError, ErrCode);
-
-    until (ErrCode <> ERROR_SUCCESS) ;
-
-    TmpPorts.Sort;
-    Ports.Assign(TmpPorts);
-  finally
-    RegCloseKey(KeyHandle);
-    TmpPorts.Free;
-  end;
-
 end;
 
 // string to baud rate
